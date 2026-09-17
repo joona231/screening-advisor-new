@@ -189,7 +189,6 @@ st.caption("FOGRA39 | D50 | 10 degree observer | 4 substrates | 6 screening meth
 tab1,tab2,tab3=st.tabs(["Single tone","Image","Research"])
 
 with tab1:
-    st.markdown('<div class="card">',unsafe_allow_html=True)
     st.markdown('<div class="section">CMYK input</div>',unsafe_allow_html=True)
     cols=st.columns(4)
     vals=[]
@@ -197,7 +196,6 @@ with tab1:
         with col:
             vals.append(st.number_input(ch,0.0,100.0,20.0,1.0,key="v_"+ch))
     st.caption("CMYK range: 0-100 for each channel")
-    st.markdown('</div>',unsafe_allow_html=True)
     cmyk=tuple(float(x) for x in vals)
     lab,lab_source=reference_lab(df,cmyk)
     exact_source="Experimental reference" if lab_source.startswith("experimental") else "FOGRA39 ICC"
@@ -224,17 +222,14 @@ with tab1:
     st.dataframe(show,use_container_width=True,hide_index=True)
 
 with tab2:
-    st.markdown('<div class="card">',unsafe_allow_html=True)
     st.markdown('<div class="section">Image analysis</div>',unsafe_allow_html=True)
     st.markdown("**Image upload**")
-    st.caption("Supported formats: JPEG, PNG and TIFF")
     uploaded=st.file_uploader(
         "Choose image",
         type=["jpg", "jpeg", "png", "tiff"],
         label_visibility="visible"
     )
     mode=st.radio("Input colour space",["CMYK image","RGB image to FOGRA39 CMYK"],horizontal=True)
-    st.markdown('</div>',unsafe_allow_html=True)
     if uploaded:
         suffix = Path(uploaded.name).suffix.lower()
         allowed_suffixes = {".jpg", ".jpeg", ".png", ".tiff"}
