@@ -1,0 +1,69 @@
+name: Fix upload UI
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply upload fixes
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path("app.py")
+          s = p.read_text(encoding="utf-8")
+
+          # Keep the native Streamlit uploader line, but make its extension label TIF.
+          s = s.replace('[data-testid="stFileUploaderDropzone"] small { display:none !important; }\n', '')
+          s = s.replace('type=["jpg", "jpeg", "png", "tiff"],', 'type=["jpg", "png", "tif"],')
+
+          # Remove the duplicate explanatory upload-format caption.
+          s = s.replace('    st.markdown("**Image upload**")\n', '')
+
+          # Give the uploader a resettable key and add a clear-image button.
+          old = '''    uploaded=st.file_uploader(
+        "Choose image",
+        type=["jpg", "png", "tif"],
+        label_visibility="visible"
+    )
+    mode=st.radio("Input colour space",["CMYK image","RGB image to FOGRA39 CMYK"],horizontal=True)
+    if uploaded:
+'''
+          new = '''    if "image_uploader_reset" not in st.session_state:
+        st.session_state.image_uploader_reset = 0
+    uploader_key = f"image_upload_{st.session_state.image_uploader_reset}"
+    uploaded=st.file_uploader(
+        "Choose image",
+        type=["jpg", "png", "tif"],
+        key=uploader_key,
+        label_visibility="visible"
+    )
+    mode=st.radio("Input colour space",["CMYK image","RGB image to FOGRA39 CMYK"],horizontal=True)
+    if uploaded:
+        if st.button("Remove image", key="remove_uploaded_image"):
+            st.session_state.image_uploader_reset += 1
+            st.rerun()
+'''
+          if old not in s:
+              raise SystemExit("Expected uploader block was not found; no changes made.")
+          s = s.replace(old, new, 1)
+
+          # Also accept .tiff when a browser supplies that extension, despite the compact TIF label.
+          s = s.replace('allowed_suffixes = {".jpg", ".jpeg", ".png", ".tiff"}', 'allowed_suffixes = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}')
+          p.write_text(s, encoding="utf-8")
+
+      - name: Commit and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.py
+          git rm .github/workflows/fix-upload.yml
+          git commit -m "Polish image uploader and add clear action"
+          git push
