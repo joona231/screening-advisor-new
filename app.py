@@ -74,7 +74,7 @@ def load_metrics():
 def load_means():
     return pd.read_csv(MEANS_PATH)
 
-@st.cache_resource(show_spinner=False)
+@st.cache_resource(show_spinner=False, max_entries=1)
 def icc_profiles():
     cmyk = ImageCms.getOpenProfile(str(ICC_PATH))
     lab = ImageCms.createProfile("LAB")
@@ -156,15 +156,23 @@ def predict_single(df, cmyk_tuple):
             rows.append([paper,s,float(p)])
     return pd.DataFrame(rows,columns=["paper","screening","pred_de00"]).sort_values("pred_de00").reset_index(drop=True)
 
+def prepare_image_for_analysis(image, max_side=1600):
+    """Downsample before colour conversion to keep Streamlit memory use bounded."""
+    image = image.copy()
+    image.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
+    return image
+
 def image_samples(image, max_samples=700):
-    arr=np.asarray(image.convert("CMYK"),dtype=np.uint8)
-    c=np.rint(arr.astype(np.float32)/255*25)/25*100
-    flat=c.reshape(-1,4).astype(np.float32)
-    uniq,counts=np.unique(flat,axis=0,return_counts=True)
-    if len(uniq)>max_samples:
-        idx=np.argsort(counts)[::-1][:max_samples]
-        uniq,counts=uniq[idx],counts[idx]
-    return uniq, counts/counts.sum()
+    # Never materialize the original full-resolution image as a NumPy array.
+    image = prepare_image_for_analysis(image)
+    arr = np.asarray(image.convert("CMYK"), dtype=np.uint8)
+    c = np.rint(arr.astype(np.float32) / 255 * 25) / 25 * 100
+    flat = c.reshape(-1, 4).astype(np.float32)
+    uniq, counts = np.unique(flat, axis=0, return_counts=True)
+    if len(uniq) > max_samples:
+        idx = np.argsort(counts)[::-1][:max_samples]
+        uniq, counts = uniq[idx], counts[idx]
+    return uniq, counts / counts.sum()
 
 def predict_image(df, colors, weights):
     rows=[]
@@ -237,6 +245,7 @@ with tab2:
             st.error("Unsupported format. Please upload a JPEG, PNG or TIFF image.")
             st.stop()
         img=Image.open(uploaded)
+        img=prepare_image_for_analysis(img)
         if mode.startswith("RGB"):
             work=rgb_to_cmyk_icc(img)
             note="RGB input converted with sRGB to FOGRA39 ICC colour management."
