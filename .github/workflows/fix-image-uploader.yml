@@ -1,0 +1,84 @@
+name: Fix image uploader
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch uploader
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app.py')
+          s = p.read_text(encoding='utf-8')
+
+          s = s.replace(
+              '[data-testid="stFileUploaderDropzone"] small { display:none !important; }',
+              '[data-testid="stFileUploaderDropzone"] small,\n.stFileUploader small { display:none !important; }'
+          )
+
+          old = '''    st.markdown("**Image upload**")
+          uploaded=st.file_uploader(
+              "Choose image",
+              type=["jpg", "jpeg", "png", "tiff"],
+              label_visibility="visible"
+          )'''
+          new = '''    st.markdown("**Image upload**")
+          if "image_uploader_key" not in st.session_state:
+              st.session_state.image_uploader_key = 0
+          uploaded=st.file_uploader(
+              "Choose image",
+              type=["jpg", "jpeg", "png", "tif"],
+              label_visibility="visible",
+              key=f"image_uploader_{st.session_state.image_uploader_key}"
+          )'''
+          if old not in s:
+              raise SystemExit('Uploader block not found; refusing to modify app.py')
+          s = s.replace(old, new, 1)
+
+          s = s.replace(
+              'allowed_suffixes = {".jpg", ".jpeg", ".png", ".tiff"}',
+              'allowed_suffixes = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}',
+              1
+          )
+          s = s.replace(
+              'st.error("Unsupported format. Please upload a JPEG, PNG or TIFF image.")',
+              'st.error("Unsupported format. Please upload a JPG, PNG or TIF image.")',
+              1
+          )
+
+          old_img = '''        st.image(img,caption="Input preview",use_container_width=True)
+          st.markdown(f'<div class="warning">{note}</div>',unsafe_allow_html=True)'''
+          new_img = '''        st.image(img,caption="Input preview",use_container_width=True)
+          if st.button("Remove image", key="remove_uploaded_image"):
+              st.session_state.image_uploader_key += 1
+              st.rerun()
+          st.markdown(f'<div class="warning">{note}</div>',unsafe_allow_html=True)'''
+          if old_img not in s:
+              raise SystemExit('Image preview block not found; refusing to modify app.py')
+          s = s.replace(old_img, new_img, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Verify changes
+        run: |
+          grep -n "image_uploader_key\|Remove image\|type=\[\"jpg\", \"jpeg\", \"png\", \"tif\"\]" app.py
+          python -m py_compile app.py
+
+      - name: Commit and remove workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.py .github/workflows/fix-image-uploader.yml
+          git rm .github/workflows/fix-image-uploader.yml
+          git commit -m "Fix image uploader reset and format display"
+          git push
