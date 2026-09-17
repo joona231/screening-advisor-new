@@ -31,7 +31,7 @@ st.markdown("""
 <style>
 :root { --ink:#111827; --muted:#667085; --line:#e5e7eb; --soft:#f8fafc; --accent:#111827; }
 html, body, [class*="css"] { font-family: Arial, "Segoe UI", sans-serif; }
-[data-testid="stFileUploaderDropzone"] small { display:none !important; }
+[data-testid="stFileUploaderDropzone"] small, .stFileUploader small { display:none !important; }
 .block-container { max-width:1120px; padding-top:2rem; padding-bottom:3rem; }
 .hero { padding:0 0 1.25rem; }
 .eyebrow { color:#667085; font-size:.72rem; letter-spacing:.13em; text-transform:uppercase; font-weight:700; }
@@ -232,15 +232,18 @@ with tab1:
 with tab2:
     st.markdown('<div class="section">Image analysis</div>',unsafe_allow_html=True)
     st.markdown("**Image upload**")
+    if "image_uploader_version" not in st.session_state:
+        st.session_state.image_uploader_version = 0
     uploaded=st.file_uploader(
         "Choose image",
-        type=["jpg", "jpeg", "png", "tiff"],
-        label_visibility="visible"
+        type=["jpg", "jpeg", "png", "tif", "tiff"],
+        label_visibility="visible",
+        key=f"image_uploader_{st.session_state.image_uploader_version}"
     )
     mode=st.radio("Input colour space",["CMYK image","RGB image to FOGRA39 CMYK"],horizontal=True)
     if uploaded:
         suffix = Path(uploaded.name).suffix.lower()
-        allowed_suffixes = {".jpg", ".jpeg", ".png", ".tiff"}
+        allowed_suffixes = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}
         if suffix not in allowed_suffixes:
             st.error("Unsupported format. Please upload a JPEG, PNG or TIFF image.")
             st.stop()
@@ -253,6 +256,9 @@ with tab2:
             work=img.convert("CMYK")
             note="CMYK values analysed directly; no RGB conversion was applied."
         st.image(img,caption="Input preview",use_container_width=True)
+        if st.button("Remove image", key=f"remove_image_{st.session_state.image_uploader_version}", type="tertiary"):
+            st.session_state.image_uploader_version += 1
+            st.rerun()
         st.markdown(f'<div class="warning">{note}</div>',unsafe_allow_html=True)
         colors,weights=image_samples(work)
         ir=predict_image(df,colors,weights)
