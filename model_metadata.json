@@ -1,0 +1,29 @@
+{
+  "framework": "Artificial Intelligence-assisted Print Quality Intelligence (AI-PQI)",
+  "model": "Weighted 12-nearest-neighbour regression",
+  "features": [
+    "C",
+    "M",
+    "Y",
+    "K"
+  ],
+  "target": "DeltaE00",
+  "validation": "5-fold grouped cross-validation by Patch ID",
+  "profile": "FOGRA39L / ISO Coated v2 family",
+  "measurement_condition": "D50, 10° observer",
+  "dataset_rows": 9600,
+  "papers": [
+    "ofsetni papir 80 g",
+    "matirani papir 135 g",
+    "ofsetni papir 170 g",
+    "teksturirani papir 300 g"
+  ],
+  "screenings": [
+    "150 dot",
+    "200 dot",
+    "200 line",
+    "300 dot",
+    "600 dot",
+    "stochastic"
+  ]
+}
