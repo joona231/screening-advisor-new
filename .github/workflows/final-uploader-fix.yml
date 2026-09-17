@@ -1,0 +1,89 @@
+name: Final uploader fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply final uploader changes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('app.py')
+          s = p.read_text(encoding='utf-8')
+
+          old_css = '[data-testid="stFileUploaderDropzone"] small { display:none !important; }'
+          new_css = '''[data-testid="stFileUploaderDropzone"] small,
+          [data-testid="stFileDropzoneInstructions"] > div > small,
+          [data-testid="stFileUploaderDropzoneInstructions"] > div > small {
+              font-size:0 !important;
+              display:block !important;
+          }
+          [data-testid="stFileUploaderDropzone"] small::after,
+          [data-testid="stFileDropzoneInstructions"] > div > small::after,
+          [data-testid="stFileUploaderDropzoneInstructions"] > div > small::after {
+              content:"200MB per file • JPG, PNG, TIF";
+              font-size:.75rem;
+          }'''
+          if old_css not in s:
+              raise SystemExit('Expected uploader CSS marker not found')
+          s = s.replace(old_css, new_css, 1)
+
+          old_uploader = '''    uploaded=st.file_uploader(
+        "Choose image",
+        type=["jpg", "jpeg", "png", "tiff"],
+        label_visibility="visible"
+    )'''
+          new_uploader = '''    if "image_uploader_version" not in st.session_state:
+        st.session_state.image_uploader_version = 0
+
+    uploaded=st.file_uploader(
+        "Choose image",
+        type=["jpg", "jpeg", "png", "tif", "tiff"],
+        key=f"image_uploader_{st.session_state.image_uploader_version}",
+        label_visibility="collapsed"
+    )
+
+    if uploaded is not None:
+        if st.button(
+            "Remove image",
+            key=f"remove_image_{st.session_state.image_uploader_version}",
+            type="tertiary"
+        ):
+            st.session_state.image_uploader_version += 1
+            st.rerun()'''
+          if old_uploader not in s:
+              raise SystemExit('Expected uploader block not found')
+          s = s.replace(old_uploader, new_uploader, 1)
+
+          # Keep the application-side extension check consistent with the uploader.
+          s = s.replace(
+              'allowed_suffixes = {".jpg", ".jpeg", ".png", ".tiff"}',
+              'allowed_suffixes = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}',
+              1
+          )
+
+          p.write_text(s, encoding='utf-8')
+
+          # This is a one-shot repair workflow: remove it after applying the fix.
+          Path('.github/workflows/final-uploader-fix.yml').unlink()
+
+      - name: Commit final repair
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.py .github/workflows/final-uploader-fix.yml
+          git commit -m "Finalize image uploader UI and reset action"
+          git push
