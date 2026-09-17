@@ -31,6 +31,7 @@ st.markdown("""
 <style>
 :root { --ink:#111827; --muted:#667085; --line:#e5e7eb; --soft:#f8fafc; --accent:#111827; }
 html, body, [class*="css"] { font-family: Arial, "Segoe UI", sans-serif; }
+[data-testid="stFileUploaderDropzone"] small { display:none !important; }
 .block-container { max-width:1120px; padding-top:2rem; padding-bottom:3rem; }
 .hero { padding:0 0 1.25rem; }
 .eyebrow { color:#667085; font-size:.72rem; letter-spacing:.13em; text-transform:uppercase; font-weight:700; }
@@ -229,7 +230,7 @@ with tab2:
     st.caption("Supported formats: JPEG, PNG and TIFF")
     uploaded=st.file_uploader(
         "Choose image",
-        type=None,
+        type=["jpg", "jpeg", "png", "tiff"],
         label_visibility="visible"
     )
     mode=st.radio("Input colour space",["CMYK image","RGB image to FOGRA39 CMYK"],horizontal=True)
