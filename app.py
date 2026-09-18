@@ -224,6 +224,7 @@ with tab1:
     res=predict_single(df,cmyk)
     best=res.iloc[0]
     st.session_state["single_recommendation"] = {"paper": best.paper, "screening": best.screening, "pred_de00": float(best.pred_de00), "cmyk": cmyk}
+    st.session_state["active_analysis"] = "Single tone"
     st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
     st.markdown(f'<div class="rec"><div class="rec-kicker">AI-PQI recommendation</div><div class="rec-paper">{PAPER_LABELS[best.paper]}</div><div class="rec-screen">{best.screening}</div><div class="rec-number">{best.pred_de00:.2f} DeltaE00</div><div class="note">Predicted colour difference under the validated experimental conditions.</div></div>',unsafe_allow_html=True)
     st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
@@ -269,6 +270,7 @@ with tab2:
         ir=predict_image(df,colors,weights)
         best=ir.iloc[0]
         st.session_state["image_recommendation"] = {"paper": best.paper, "screening": best.screening, "pred_de00": float(best.mean_de00)}
+        st.session_state["active_analysis"] = "Image"
         st.markdown(f'<div class="warning"><b>Image analysis:</b> Recommendation is based on the pixel-weighted mean predicted ΔE00. The dominant colour is not used as the sole criterion.</div>',unsafe_allow_html=True)
         st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
         st.markdown(f'<div class="rec"><div class="rec-kicker">AI-PQI image recommendation</div><div class="rec-paper">{PAPER_LABELS[best.paper]}</div><div class="rec-screen">{best.screening}</div><div class="rec-number">{best.mean_de00:.2f} DeltaE00</div><div class="note">Primary criterion: pixel-weighted mean predicted DeltaE00  |  P90: {best.p90_de00:.2f}</div></div>',unsafe_allow_html=True)
@@ -302,32 +304,14 @@ with tab3:
     st.markdown('<div class="section">Current recommendation — experimental evidence</div>',unsafe_allow_html=True)
     single_rec = st.session_state.get("single_recommendation")
     image_rec = st.session_state.get("image_recommendation")
+    active_analysis = st.session_state.get("active_analysis")
 
-    # Explicitly select which current analysis Research should follow.
-    context_options = []
-    if single_rec is not None:
-        context_options.append("Single tone")
-    if image_rec is not None:
-        context_options.append("Image")
-
-    if context_options:
-        research_context = st.radio(
-            "Research context",
-            context_options,
-            horizontal=True,
-            key="research_context"
-        )
-    else:
-        research_context = None
-
-    if research_context == "Image" and image_rec is not None:
+    if active_analysis == "Image" and image_rec is not None:
         current_rec = image_rec
-        context_label = "Current image recommendation"
         input_label = "Image analysis"
         input_value = "Pixel-weighted CMYK distribution"
-    elif research_context == "Single tone" and single_rec is not None:
+    elif single_rec is not None:
         current_rec = single_rec
-        context_label = "Current Single tone recommendation"
         input_label = "CMYK input"
         input_value = " / ".join(f"{v:.0f}" for v in current_rec["cmyk"])
     else:
@@ -340,14 +324,16 @@ with tab3:
         exp_std = float(selected.de00.std())
         exp_n = int(len(selected))
         e1,e2,e3,e4 = st.columns(4)
-        for col,label,value in zip(
-            [e1,e2,e3,e4],
-            [context_label,"Recommended condition","Measured mean ΔE00","Measured patches"],
-            [f"{input_label}: {input_value}",f"{PAPER_LABELS[current_rec['paper']]} + {current_rec['screening']}",f"{exp_mean:.2f}",str(exp_n)]
-        ):
+        box_values = [
+            (input_label, input_value),
+            ("Recommended condition", f"{PAPER_LABELS[current_rec['paper']]} + {current_rec['screening']}"),
+            ("Measured mean ΔE00", f"{exp_mean:.2f}"),
+            ("AI-PQI predicted ΔE00", f"{current_rec['pred_de00']:.2f}")
+        ]
+        for col,(label,value) in zip([e1,e2,e3,e4], box_values):
             with col:
                 st.markdown(f'<div class="metricbox"><div class="label">{label}</div><div class="value">{value}</div></div>',unsafe_allow_html=True)
-        st.caption(f"AI-PQI predicted ΔE00: {current_rec['pred_de00']:.2f} | Experimental median ΔE00: {exp_median:.2f} | SD: {exp_std:.2f}.")
+        st.caption(f"Measured patches: {exp_n} | Experimental median ΔE00: {exp_median:.2f} | SD: {exp_std:.2f}.")
     else:
         st.caption("Run a Single tone or Image analysis to display evidence for the current recommendation.")
 
