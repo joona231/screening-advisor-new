@@ -193,7 +193,7 @@ means=load_means()
 st.markdown("## Screening Advisor")
 st.markdown("**Artificial Intelligence-assisted Print Quality Intelligence (AI-PQI)**")
 st.caption("Data-driven decision support for paper and screening selection.")
-st.caption("CIE L*a*b*: L* = 0-100 | a* and b* use signed values around 0 (green − / red +; blue − / yellow +)")
+st.caption("CIE L*a*b*: L* = lightness; a* = green–red axis; b* = blue–yellow axis.")
 st.caption("FOGRA39 | D50 | 10 degree observer | 4 substrates | 6 screening methods | 9,600 measurements")
 
 tab1,tab2,tab3=st.tabs(["Single tone","Image","Research"])
@@ -215,7 +215,7 @@ with tab1:
     for col,label,value in zip(labcols,["L*","a*","b*"],lab):
         with col:
             st.metric(label, f"{float(value):.2f}")
-    st.caption("L* is lightness (0 = black, 100 = ideal reference white). a* and b* are centered around 0. The displayed values are CIELAB, not raw 8-bit Lab channels.")
+    st.caption("L* = lightness; a* = green–red axis; b* = blue–yellow axis. The displayed values are CIELAB, not raw 8-bit Lab channels.")
     info1,info2=st.columns(2)
     with info1:
         st.markdown(f'<div class="metricbox"><div class="label">Reference source</div><div class="value">{exact_source}</div><div class="note">Exact chart CMYK uses the experimental Target Lab; other CMYK values use the FOGRA39 ICC reference transform.</div></div>',unsafe_allow_html=True)
