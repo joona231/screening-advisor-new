@@ -208,14 +208,16 @@ with tab1:
     lab,lab_source=reference_lab(df,cmyk)
     exact_source="Experimental reference" if lab_source.startswith("experimental") else "FOGRA39 ICC"
     st.markdown('<div style="height:.8rem"></div>',unsafe_allow_html=True)
-    a,b,c=st.columns(3)
-    with a:
-        st.markdown("**Target / reference CIELAB**")
-        st.metric("L*", f"{float(lab[0]):.2f}")
-        st.caption(f"Standard CIELAB: L* 0-100 | a* {float(lab[1]):.2f} | b* {float(lab[2]):.2f}")
-    with b:
-        st.markdown(f'<div class="metricbox"><div class="label">Reference source</div><div class="value">{exact_source}</div><div class="note">CMYK to Lab colour-managed transform</div></div>',unsafe_allow_html=True)
-    with c:
+    st.markdown("**Target / reference CIELAB**")
+    labcols=st.columns(3)
+    for col,label,value in zip(labcols,["L*","a*","b*"],lab):
+        with col:
+            st.metric(label, f"{float(value):.2f}")
+    st.caption("L* is lightness (0 = black, 100 = ideal reference white). a* and b* are centered around 0. The displayed values are CIELAB, not raw 8-bit Lab channels.")
+    info1,info2=st.columns(2)
+    with info1:
+        st.markdown(f'<div class="metricbox"><div class="label">Reference source</div><div class="value">{exact_source}</div><div class="note">Exact chart CMYK uses the experimental Target Lab; other CMYK values use the FOGRA39 ICC reference transform.</div></div>',unsafe_allow_html=True)
+    with info2:
         st.markdown('<div class="metricbox"><div class="label">Decision space</div><div class="value">24 conditions</div><div class="note">4 papers × 6 screening methods</div></div>',unsafe_allow_html=True)
     res=predict_single(df,cmyk)
     best=res.iloc[0]
@@ -263,8 +265,9 @@ with tab2:
         colors,weights=image_samples(work)
         ir=predict_image(df,colors,weights)
         best=ir.iloc[0]
+        st.markdown(f'<div class="warning"><b>Analysis principle.</b> The image is analysed as a distribution of CMYK colours. Each quantized CMYK colour is weighted by its pixel frequency, so the primary decision criterion is the <b>pixel-weighted mean predicted DeltaE00</b> across the image. The dominant colour alone is not used for the recommendation. P90 DeltaE00 is shown as a secondary measure of the higher-error part of the colour distribution. Current analysis uses {len(colors)} representative CMYK colours; the most frequent colour represents {float(np.max(weights))*100:.1f}% of analysed pixels.</div>',unsafe_allow_html=True)
         st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
-        st.markdown(f'<div class="rec"><div class="rec-kicker">AI-PQI image recommendation</div><div class="rec-paper">{PAPER_LABELS[best.paper]}</div><div class="rec-screen">{best.screening}</div><div class="rec-number">{best.mean_de00:.2f} DeltaE00</div><div class="note">Weighted mean predicted DeltaE00  |  P90 {best.p90_de00:.2f}</div></div>',unsafe_allow_html=True)
+        st.markdown(f'<div class="rec"><div class="rec-kicker">AI-PQI image recommendation</div><div class="rec-paper">{PAPER_LABELS[best.paper]}</div><div class="rec-screen">{best.screening}</div><div class="rec-number">{best.mean_de00:.2f} DeltaE00</div><div class="note">Primary criterion: pixel-weighted mean predicted DeltaE00  |  P90: {best.p90_de00:.2f}</div></div>',unsafe_allow_html=True)
         show=ir.copy()
         show["paper"]=show.paper.map(PAPER_LABELS)
         show.columns=["Paper","Screening","Mean DeltaE00","P90 DeltaE00"]
@@ -291,6 +294,17 @@ with tab3:
     v["r2"]=v.r2.round(2)
     v.columns=["Paper","Recommendation accuracy %","MAE DeltaE00","RMSE DeltaE00","R²"]
     st.dataframe(v,use_container_width=True,hide_index=True)
+    st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
+    st.markdown('<div class="section">Data provenance</div>',unsafe_allow_html=True)
+    provenance = pd.DataFrame([
+        ["Experimental measurements","4 substrates × 6 screenings × 400 patches","9,600 measurements","X-Rite i1Pro 2 / Xerox Colour C60/C70"],
+        ["Reference chart","400 CMYK patches with experimental Target L*a*b*","400 reference colours","D50 / 10° observer"],
+        ["Model input","CMYK values from the measured patches","4,800 training conditions per?","Weighted 12-nearest-neighbour regression"],
+        ["Colour management","FOGRA39 ICC","Reference conversion for arbitrary CMYK and RGB→CMYK","Not a replacement for measured Target Lab"],
+    ], columns=["Source / component","What it contains","Scope","Role in AI-PQI"])
+    provenance.iloc[2,2] = "4 papers × 6 screenings × 400 patches"
+    st.dataframe(provenance,use_container_width=True,hide_index=True)
+    st.caption("The Research panel documents the experimental source of the model and separates measured data from the FOGRA39 colour-management reference. It is not intended to fetch external literature automatically.")
     st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
     st.markdown('<div class="section">Experimental mean DeltaE00</div>',unsafe_allow_html=True)
     mm=means.pivot(index="paper",columns="screening",values="mean_measured_de00").loc[PAPERS,SCREENINGS]
