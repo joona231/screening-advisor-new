@@ -297,6 +297,22 @@ with tab3:
     v.columns=["Paper","Recommendation accuracy %","MAE DeltaE00","RMSE DeltaE00","R²"]
     st.dataframe(v,use_container_width=True,hide_index=True)
     st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
+    st.markdown('<div class="section">Recommended condition — experimental evidence</div>',unsafe_allow_html=True)
+    selected = df[(df.paper == best.paper) & (df.screening == best.screening)]
+    exp_mean = float(selected.de00.mean())
+    exp_median = float(selected.de00.median())
+    exp_std = float(selected.de00.std())
+    exp_n = int(len(selected))
+    e1,e2,e3,e4 = st.columns(4)
+    for col,label,value in zip(
+        [e1,e2,e3,e4],
+        ["Recommended paper","Recommended screening","Measured mean ΔE00","Measured patches"],
+        [PAPER_LABELS[best.paper],best.screening,f"{exp_mean:.2f}",str(exp_n)]
+    ):
+        with col:
+            st.markdown(f'<div class="metricbox"><div class="label">{label}</div><div class="value">{value}</div></div>',unsafe_allow_html=True)
+    st.caption(f"Experimental distribution for the recommended condition: median ΔE00 = {exp_median:.2f} | SD = {exp_std:.2f}.")
+    st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
     st.markdown('<div class="section">Data provenance</div>',unsafe_allow_html=True)
     provenance = pd.DataFrame([
         ["Experimental measurements","4 substrates × 6 screenings × 400 patches","9,600 measurements","X-Rite i1Pro 2 / Xerox Colour C60/C70"],
