@@ -84,16 +84,18 @@ def icc_profiles():
     return cmyk_to_lab, srgb_to_cmyk
 
 def lab_from_cmyk_icc(cmyk):
+    """Convert CMYK percentages to real CIE L*a*b* using the FOGRA39 ICC profile.
+    Pillow returns an 8-bit Lab encoding, so decode it explicitly:
+    L* = L8*100/255; a* = A8-128; b* = B8-128.
+    Returned values are CIELAB coordinates, not encoded 0-255 channels.
+    """
     transform, _ = icc_profiles()
     x = np.asarray(cmyk, dtype=float).reshape(-1, 4)
     px = np.clip(np.rint(x * 255.0 / 100.0), 0, 255).astype(np.uint8)
-
     results = []
     for row in px:
         im = Image.new("CMYK", (1, 1), tuple(int(v) for v in row))
         out = ImageCms.applyTransform(im, transform)
-        # Pillow's 8-bit LAB image stores:
-        # L8 = L* * 255/100, A8 = a* + 128, B8 = b* + 128.
         L8, A8, B8 = out.getpixel((0, 0))
         results.append([
             float(L8) * 100.0 / 255.0,
@@ -191,7 +193,7 @@ means=load_means()
 st.markdown("## Screening Advisor")
 st.markdown("**Artificial Intelligence-assisted Print Quality Intelligence (AI-PQI)**")
 st.caption("Data-driven decision support for paper and screening selection.")
-st.caption("CIELAB scale: L* = 0-100 | a* and b* are centered around 0")
+st.caption("CIE L*a*b*: L* = 0-100 | a* and b* use signed values around 0 (green − / red +; blue − / yellow +)")
 st.caption("FOGRA39 | D50 | 10 degree observer | 4 substrates | 6 screening methods | 9,600 measurements")
 
 tab1,tab2,tab3=st.tabs(["Single tone","Image","Research"])
