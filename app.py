@@ -302,12 +302,30 @@ with tab3:
     st.markdown('<div class="section">Current recommendation — experimental evidence</div>',unsafe_allow_html=True)
     single_rec = st.session_state.get("single_recommendation")
     image_rec = st.session_state.get("image_recommendation")
-    if image_rec is not None and "uploaded" in locals() and uploaded is not None:
+
+    # Explicitly select which current analysis Research should follow.
+    context_options = []
+    if single_rec is not None:
+        context_options.append("Single tone")
+    if image_rec is not None:
+        context_options.append("Image")
+
+    if context_options:
+        research_context = st.radio(
+            "Research context",
+            context_options,
+            horizontal=True,
+            key="research_context"
+        )
+    else:
+        research_context = None
+
+    if research_context == "Image" and image_rec is not None:
         current_rec = image_rec
         context_label = "Current image recommendation"
         input_label = "Image analysis"
         input_value = "Pixel-weighted CMYK distribution"
-    elif single_rec is not None:
+    elif research_context == "Single tone" and single_rec is not None:
         current_rec = single_rec
         context_label = "Current Single tone recommendation"
         input_label = "CMYK input"
