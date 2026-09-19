@@ -8,7 +8,6 @@ from PIL import Image, ImageCms
 APP_DIR = Path(__file__).parent
 DATA_PATH = APP_DIR / "training_data.csv"
 ICC_PATH = APP_DIR / "FOGRA39L_coated.icc"
-METRICS_PATH = APP_DIR / "validation_metrics.csv"
 MEANS_PATH = APP_DIR / "experimental_means.csv"
 
 PAPERS = [
@@ -65,10 +64,6 @@ def load_data():
     if len(df) != 9600:
         raise ValueError(f"Expected 9,600 measurements, found {len(df)}.")
     return df
-
-@st.cache_data(show_spinner=False)
-def load_metrics():
-    return pd.read_csv(METRICS_PATH)
 
 @st.cache_data(show_spinner=False)
 def load_means():
@@ -187,7 +182,6 @@ def predict_image(df, colors, weights):
     return pd.DataFrame(rows,columns=["paper","screening","mean_de00","p90_de00"]).sort_values("mean_de00").reset_index(drop=True)
 
 df=load_data()
-metrics=load_metrics()
 means=load_means()
 
 st.markdown("## Screening Advisor")
@@ -215,7 +209,7 @@ with tab1:
     for col,label,value in zip(labcols,["L*","a*","b*"],lab):
         with col:
             st.metric(label, f"{float(value):.2f}")
-    st.caption("L* = lightness; a* = green–red axis; b* = blue–yellow axis. The displayed values are CIELAB, not raw 8-bit Lab channels.")
+    st.caption("L* = lightness; a* = green–red axis; b* = blue–yellow axis.")
     info1,info2=st.columns(2)
     with info1:
         st.markdown(f'<div class="metricbox"><div class="label">Reference source</div><div class="value">{exact_source}</div><div class="note">Exact chart CMYK uses the experimental Target Lab; other CMYK values use the FOGRA39 ICC reference transform.</div></div>',unsafe_allow_html=True)
@@ -223,8 +217,11 @@ with tab1:
         st.markdown('<div class="metricbox"><div class="label">Decision space</div><div class="value">24 conditions</div><div class="note">4 papers × 6 screening methods</div></div>',unsafe_allow_html=True)
     res=predict_single(df,cmyk)
     best=res.iloc[0]
+    previous_cmyk = st.session_state.get("_last_single_cmyk")
+    if previous_cmyk != cmyk:
+        st.session_state["active_analysis"] = "Single tone"
+    st.session_state["_last_single_cmyk"] = cmyk
     st.session_state["single_recommendation"] = {"paper": best.paper, "screening": best.screening, "pred_de00": float(best.pred_de00), "cmyk": cmyk}
-    st.session_state["active_analysis"] = "Single tone"
     st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
     st.markdown(f'<div class="rec"><div class="rec-kicker">AI-PQI recommendation</div><div class="rec-paper">{PAPER_LABELS[best.paper]}</div><div class="rec-screen">{best.screening}</div><div class="rec-number">{best.pred_de00:.2f} DeltaE00</div><div class="note">Predicted colour difference under the validated experimental conditions.</div></div>',unsafe_allow_html=True)
     st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
@@ -264,13 +261,18 @@ with tab2:
         st.image(img,caption="Input preview",use_container_width=True)
         if st.button("Remove image", key=f"remove_image_{st.session_state.image_uploader_version}", type="tertiary"):
             st.session_state.image_uploader_version += 1
+            if st.session_state.get("single_recommendation") is not None:
+                st.session_state["active_analysis"] = "Single tone"
             st.rerun()
         st.markdown(f'<div class="warning">{note}</div>',unsafe_allow_html=True)
         colors,weights=image_samples(work)
         ir=predict_image(df,colors,weights)
         best=ir.iloc[0]
+        image_signature = (uploaded.name, uploaded.size, mode)
+        if st.session_state.get("_last_image_signature") != image_signature:
+            st.session_state["active_analysis"] = "Image"
+        st.session_state["_last_image_signature"] = image_signature
         st.session_state["image_recommendation"] = {"paper": best.paper, "screening": best.screening, "pred_de00": float(best.mean_de00)}
-        st.session_state["active_analysis"] = "Image"
         st.markdown(f'<div class="warning"><b>Image analysis:</b> Recommendation is based on the pixel-weighted mean predicted ΔE00. The dominant colour is not used as the sole criterion.</div>',unsafe_allow_html=True)
         st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
         st.markdown(f'<div class="rec"><div class="rec-kicker">AI-PQI image recommendation</div><div class="rec-paper">{PAPER_LABELS[best.paper]}</div><div class="rec-screen">{best.screening}</div><div class="rec-number">{best.mean_de00:.2f} DeltaE00</div><div class="note">Primary criterion: pixel-weighted mean predicted DeltaE00  |  P90: {best.p90_de00:.2f}</div></div>',unsafe_allow_html=True)
@@ -282,26 +284,8 @@ with tab2:
         st.dataframe(show,use_container_width=True,hide_index=True)
 
 with tab3:
-    st.markdown('<div class="section">AI-PQI validation</div>',unsafe_allow_html=True)
-    st.caption("Five-fold grouped cross-validation by Patch ID. The same patch is never used simultaneously for training and testing.")
-    cols=st.columns(4)
-    overall_acc=np.average(metrics.recommendation_accuracy,weights=[400]*len(metrics))
-    for col,label,value in zip(cols,["Recommendation accuracy","Mean MAE","Mean RMSE","Validation design"],
-                               [f"{overall_acc*100:.1f}%","{:.2f} DeltaE00".format(metrics.mae.mean()),"{:.2f} DeltaE00".format(metrics.rmse.mean()),"5-fold grouped"]):
-        with col:
-            st.markdown(f'<div class="metricbox"><div class="label">{label}</div><div class="value">{value}</div></div>',unsafe_allow_html=True)
-    st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
-    st.markdown('<div class="section">Validation by substrate</div>',unsafe_allow_html=True)
-    v=metrics.copy()
-    v["paper"]=v.paper.map(PAPER_LABELS)
-    v["recommendation_accuracy"]=(v.recommendation_accuracy*100).round(1)
-    v["mae"]=v.mae.round(2)
-    v["rmse"]=v.rmse.round(2)
-    v["r2"]=v.r2.round(2)
-    v.columns=["Paper","Recommendation accuracy %","MAE DeltaE00","RMSE DeltaE00","R²"]
-    st.dataframe(v,use_container_width=True,hide_index=True)
-    st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
-    st.markdown('<div class="section">Current recommendation — experimental evidence</div>',unsafe_allow_html=True)
+    st.markdown('<div class="section">Current Recommendation — Experimental Evidence</div>',unsafe_allow_html=True)
+
     single_rec = st.session_state.get("single_recommendation")
     image_rec = st.session_state.get("image_recommendation")
     active_analysis = st.session_state.get("active_analysis")
@@ -320,8 +304,6 @@ with tab3:
     if current_rec is not None:
         selected = df[(df.paper == current_rec["paper"]) & (df.screening == current_rec["screening"])]
         exp_mean = float(selected.de00.mean())
-        exp_median = float(selected.de00.median())
-        exp_std = float(selected.de00.std())
         exp_n = int(len(selected))
         e1,e2,e3,e4 = st.columns(4)
         box_values = [
@@ -333,7 +315,7 @@ with tab3:
         for col,(label,value) in zip([e1,e2,e3,e4], box_values):
             with col:
                 st.markdown(f'<div class="metricbox"><div class="label">{label}</div><div class="value">{value}</div></div>',unsafe_allow_html=True)
-        st.caption(f"Measured patches: {exp_n} | Experimental median ΔE00: {exp_median:.2f} | SD: {exp_std:.2f}.")
+        st.caption(f"Measured patches: {exp_n}")
     else:
         st.caption("Run a Single tone or Image analysis to display evidence for the current recommendation.")
 
@@ -341,10 +323,15 @@ with tab3:
     st.markdown('<div class="section">Experimental mean DeltaE00</div>',unsafe_allow_html=True)
     mm=means.pivot(index="paper",columns="screening",values="mean_measured_de00").loc[PAPERS,SCREENINGS]
     mm.index=[PAPER_LABELS[x] for x in mm.index]
-    st.dataframe(mm.round(2),use_container_width=True)
+    st.dataframe(mm.round(2),use_container_width=True,hide_index=True)
+    st.caption("Mean measured ΔE00 for all tested paper and screening combinations.")
+
+    st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
+    st.markdown('<div class="section">Data / measurement sources</div>',unsafe_allow_html=True)
+    st.caption("X-Rite i1Pro 2 spectrophotometer | Xerox Colour C60/C70 | 4 substrates | 6 screening methods | 400 CMYK patches per condition | 9,600 measurements | D50 | 10° observer.")
+    st.caption("FOGRA39 ICC is used for colour-managed reference conversion; experimental Target Lab values remain the reference data for the measured chart.")
+
     st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
     st.markdown('<div class="warning"><b>QC note.</b> The 80 g offset / 150 dot condition contains a systematic group of unusually high DeltaE00 values. These observations are retained in the dataset rather than silently removed; the effect should be discussed as a data-quality finding in the research paper.</div>',unsafe_allow_html=True)
-    st.markdown('<div style="height:.8rem"></div>',unsafe_allow_html=True)
-    st.caption("Model: weighted 12-nearest-neighbour regression in normalized CMYK space. Target: measured DeltaE00. FOGRA39 is used for colour-managed reference conversion; the experimental Target Lab values remain the reference data for the measured chart.")
 
 st.markdown('<div class="footer">AI-PQI  |  Experimental decision-support prototype  |  FOGRA39  |  D50  |  10°</div>',unsafe_allow_html=True)
