@@ -222,7 +222,6 @@ with tab1:
         st.session_state["active_analysis"] = "Single tone"
     st.session_state["_last_single_cmyk"] = cmyk
     st.session_state["single_recommendation"] = {"paper": best.paper, "screening": best.screening, "pred_de00": float(best.pred_de00), "cmyk": cmyk}
-    st.session_state["active_analysis"] = "Single tone"
     st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
     st.markdown(f'<div class="rec"><div class="rec-kicker">AI-PQI recommendation</div><div class="rec-paper">{PAPER_LABELS[best.paper]}</div><div class="rec-screen">{best.screening}</div><div class="rec-number">{best.pred_de00:.2f} DeltaE00</div><div class="note">Predicted colour difference under the validated experimental conditions.</div></div>',unsafe_allow_html=True)
     st.markdown('<div style="height:1rem"></div>',unsafe_allow_html=True)
